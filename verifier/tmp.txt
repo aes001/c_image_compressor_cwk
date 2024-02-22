@@ -1,0 +1,57 @@
+
+    /** ------------------------------------ Write the data ------------------------------------
+     * The following code is used to write the data to the file.
+     * One pixel is read from the data array.
+     * The pixel is then masked with ebcWriteMask and the bits are shifted according to the shift value in the mask.
+     * The masked and shifted bits are then added to the cleanBuffer and the number of bits added to the cleanBuffer is
+     * counted in bitsGathered.
+     * The number of bits that have been read from the pixel is subtracted from bitsLeft.
+     * If the cleanBuffer has 8 bits it is written to the file and the cleanBuffer is cleared.
+     * If the bitsLeft is 0 then a new pixel is read from the data array.
+     * Then we advance to the next mask and repeat the process until the pixelCount is equal to the number of pixels in the image
+     * and the cleanBuffer is empty.
+     */
+    int bitsRead = 5; // Number of bits read from the current byte
+    int bitsGathered = 0; // Number of bits that have been added to the cleanBuffer
+    unsigned char dirtyBuffer = 0; // The working buffer that holds the bits that have not been positioned to fit the 8 bit byte 
+    unsigned char cleanBuffer = 0; // The buffer that holds the bits that have been positioned to fit the 8 bit byte
+    unsigned char currentByte = 0; // The current byte that is read from the image data array
+    int pixelCount = 0; // How times we have read a pixel from the data array
+    int run = GO; // Controls the loop
+    ebcMask mask[12]; // The array of masks
+    ebcWriteMask5Init(mask); // Initialise the masks in the array as an ebcWriteMask
+
+    while(run){
+        for(int i = 0; i < 12; i++){
+            if(bitsRead == 5){  // Check if we need to read a new byte (if we have read all the bits from the current pixel)
+                currentByte = image->data[pixelCount/image->width][pixelCount % image->width]; // If we need to, read a pixel from the data array and store it in the currentByte
+                bitsRead = 0; // Reset the bitsRead counter
+                pixelCount++; // Increment the pixelCount
+            }
+            dirtyBuffer = currentByte & mask[i].mask; // Mask the pixel with the mask
+            btuMultiDirectionBitShift(&dirtyBuffer, mask[i].shift); // Shift the bits according to the shift value in the mask
+            cleanBuffer = cleanBuffer | dirtyBuffer; // Append the masked and shifted bits to the cleanBuffer
+            bitsRead = bitsRead + mask[i].noBitsGathered; // Add the number of bits read from the pixel to the bitsRead counter
+            bitsGathered = bitsGathered + mask[i].noBitsGathered; // Add the number of bits read from the pixel to the bitsGathered counter
+            if(bitsGathered == 8){ // Check if we have read 8 bits to the cleanBuffer
+                check = fwrite(&cleanBuffer, 1, 1, fp); // Write the cleanBuffer to the file if we have read 8 bits
+                if(check == 0){ // Check for write errors
+                    return BAD_OUTPUT;
+                }
+                bitsGathered = 0; // Reset the bitsGathered counter
+                cleanBuffer = 0; // Reset the cleanBuffer
+            }
+            dirtyBuffer = 0; // Reset the dirtyBuffer
+            if(pixelCount == image->height * image->width){ // Check if we have read the expected number of pixels
+                if(bitsGathered != 0){ // Check if the cleanBuffer is empty
+                    check = fwrite(&cleanBuffer, 1, 1, fp); // Write the cleanBuffer to the file if it is not empty
+                    if(check == 0){ // Check for write errors
+                        return BAD_OUTPUT;
+                    }
+                }
+                run = STOP; // If we have read the expected number of pixel and there is no more data in the cleanBuffer then we exit the loop
+                break; // Exit the loop
+            }
+        }
+    }
+    // ------------------------------------ End of write the data ------------------------------------

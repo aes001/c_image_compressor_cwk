@@ -1,0 +1,10 @@
+*.xmp
+.vscode/
+*.o
+debug.txt
+ebcBlock
+ebcUnblock
+ebcR32
+ebcU32
+ebcR128
+ebcU128
